@@ -33,7 +33,7 @@ jobs:
           
         sdk:
           - 24.10.5
-          - 25.12.0-rc1
+          - 25.12.0
 
     steps:
       - uses: actions/checkout@v5

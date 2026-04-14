@@ -32,8 +32,8 @@ jobs:
           - aarch64_generic
           
         sdk:
-          - 24.10.5
-          - 25.12.0
+          - 24.10.6
+          - 25.12.2
 
     steps:
       - uses: actions/checkout@v5

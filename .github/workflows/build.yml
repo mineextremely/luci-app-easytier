@@ -30,9 +30,10 @@ jobs:
         arch:
           - aarch64_cortex-a53
           - aarch64_generic
+          - x86_64
           
         sdk:
-          - 24.10.7
+          - 24.10.8
           - 25.12.5
 
     steps:
@@ -199,7 +200,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.arch }}-${{ matrix.sdk }}
+          name: ${{ matrix.arch }}--${{ matrix.sdk }}
           path: bin/packages/${{ matrix.arch }}/packages_ci/*
 
   release:
@@ -210,22 +211,31 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: artifacts
 
-      - name: Prepare release info
+      - name: Prepare raw packages
         run: |
           sudo timedatectl set-timezone "Asia/Shanghai"
           mkdir -p release
           shopt -s nullglob
           for dir in artifacts/*; do
             name=$(basename "$dir")
-            files=("$dir"/*.ipk "$dir"/*.apk "$dir"/*.md)
-            if [ ${#files[@]} -gt 0 ]; then
-              zip -j "release/EasyTier-${{ env.TAG }}-${name}.zip" "${files[@]}"
-            fi
+            arch="${name%%--*}"
+            for f in "$dir"/*.ipk; do
+              cp "$f" "release/$(basename "$f")"
+            done
+            for f in "$dir"/*.apk; do
+              base=$(basename "$f" .apk)
+              case "$base" in
+                easytier-noweb*|easytier-*) cp "$f" "release/${base}_${arch}.apk" ;;
+                *) cp "$f" "release/${base}_all.apk" ;;
+              esac
+            done
           done
+          readme=$(find artifacts -name README_PACKAGE.md | head -n1)
+          [ -n "$readme" ] && cp "$readme" release/README_PACKAGE.md
           echo "build_time=$(TZ=UTC-8 date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
 
       - name: Release
@@ -236,15 +246,18 @@ jobs:
 
              > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-easytier?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.TAG }}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github)
 
-             - 其中 **`24.10.x`** 里面是ipk安装包 **`25.12.x`** 里面是apk安装包 **`仅包含easytier-noweb luci-app-easytier`**
+             - 其中 **`24.10.x`** 里面是 ipk 安装包，**`25.12.x`** 里面是 apk 安装包，均为原始包，未压缩
 
-             - **`*.apk` 是OpenWrt新版的APK包** 对于apk包跳过证书命令
+             - **`*.apk` 是 OpenWrt 新版的 APK 包** 对于 apk 包跳过证书命令
              `apk add --allow-untrusted luci-app-easytier.apk`
 
-             - 每个压缩包内包含 **`README_PACKAGE.md`** 中英双语说明，包含各包作用、安装顺序、IPK/APK安装方法和常见问题处理
+             - 包说明见 README_PACKAGE.md
 
              ${{ github.event.inputs.text }}
            
             tag_name: ${{ env.TAG }}
-            files: release/*.zip
+            files: |
+              release/*.ipk
+              release/*.apk
+              release/README_PACKAGE.md
  
